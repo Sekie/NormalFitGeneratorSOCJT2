@@ -71,16 +71,18 @@ void RunSOCJT(string inName, string outName, string Iteration)
 
 /* This generates an input file using the new fit file. Note that the input file is saved and accessed
 from the hard drive so don't run two instances of NFG in the same folder. */
-void GenerateInput(string inName, string IterationFitFile)
+void GenerateInput(string inName, string tmpinName, string IterationFitFile)
 {
 	ifstream InputFile(inName.c_str());
-	ofstream NewInputFile("tmpInput");
+	ofstream NewInputFile(tmpinName.c_str());
 	string FitFileLine = "FITFILE = " + IterationFitFile;
 
 	string SetFitFile = "FITFILE = USENFG";
 
 	size_t len = SetFitFile.length();
 	string strTemp;
+
+	bool useNFG = false;
 
 	while (getline(InputFile, strTemp))
 	{
@@ -90,6 +92,7 @@ void GenerateInput(string inName, string IterationFitFile)
 			if (pos != string::npos)
 			{
 				strTemp.replace(pos, len, FitFileLine);
+				useNFG = true;
 			}
 			else
 			{
@@ -99,6 +102,10 @@ void GenerateInput(string inName, string IterationFitFile)
 		NewInputFile << strTemp << "\n";
 	}
 	NewInputFile.close();
+	if (useNFG == false)
+	{
+		throw 0;
+	}
 }
 
 int main()
@@ -108,9 +115,6 @@ int main()
 	string inFit, outFit, Input, Output; // Original fit file, randomized fit file, SOCJT2 input, name for output
 	cout << "Name of original fit file?" << endl;
 	getline(cin, inFit);
-	cout << "Name of randomized fit files? Enter to use the same name as the input." << endl;
-	getline(cin, outFit);
-
 	cout << "Name of input file?" << endl;
 	getline(cin, Input);
 	cout << "Name of output file?" << endl;
@@ -118,19 +122,19 @@ int main()
 
 	int N = 0;
 	double StdDev;
-	cout << "How many iterations?" << endl;
-	cin >> N;
 	cout << "Standard Deviation? (Normal Distribution)" << endl;
 	cin >> StdDev;
+	cout << "How many iterations?" << endl;
+	cin >> N;
 
-	if (outFit.empty() == 1) // If nothing is entered, use inFit name.
-	{
-		outFit = inFit;
-	}
 	if (Output.empty() == 1) // If nothing is entered, use Input.out name.
 	{
 		Output = Input + ".out";
 	}
+
+	outFit = inFit + "_" + Output;
+
+	string tmpInput = "tmpInput_" + Output + ".tmp";
 	std::ifstream infile(inFit.c_str());
 
 	if (!infile)
@@ -177,11 +181,22 @@ int main()
 		}
 		FitFile.close();
 
-		GenerateInput(Input, IterationFitFile);
+		try
+		{
+			GenerateInput(Input, tmpInput, IterationFitFile);
+		}
+		catch (int k)
+		{
+			if (k == 0)
+			{
+				cerr << "No switch (USENFG) detected in input file." << endl;
+				return 0;
+			}
+		}
 
-		RunSOCJT("tmpInput", Output, strItIndex);
+		RunSOCJT(tmpInput, Output, strItIndex);
 	} // End Iterations Loop
-	remove("tmpInput");
+	remove(tmpInput.c_str());
 
 	// duration = (clock() - start) / (double)CLOCKS_PER_SEC;
 
