@@ -110,18 +110,11 @@ int main()
 	getline(cin, inFit);
 	cout << "Name of randomized fit files? Enter to use the same name as the input." << endl;
 	getline(cin, outFit);
-	if (outFit == " ");
-	{
-		outFit = inFit;
-	}
+
 	cout << "Name of input file?" << endl;
 	getline(cin, Input);
 	cout << "Name of output file?" << endl;
 	getline(cin, Output);
-	if (Output == " ")
-	{
-		Output = Input + ".out";
-	}
 
 	int N = 0;
 	double StdDev;
@@ -130,6 +123,14 @@ int main()
 	cout << "Standard Deviation? (Normal Distribution)" << endl;
 	cin >> StdDev;
 
+	if (outFit.empty() == 1) // If nothing is entered, use inFit name.
+	{
+		outFit = inFit;
+	}
+	if (Output.empty() == 1) // If nothing is entered, use Input.out name.
+	{
+		Output = Input + ".out";
+	}
 	std::ifstream infile(inFit.c_str());
 
 	if (!infile)
