@@ -174,7 +174,6 @@ int main()
 		{
 			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n";
 		}
-
 		FitFile.close();
 
 		GenerateInput(Input, IterationFitFile);
