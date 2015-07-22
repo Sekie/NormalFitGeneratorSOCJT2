@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
-// #include <ctime>
+#include <ctime>
 #include <locale>
 
 using namespace std;
@@ -24,11 +24,13 @@ USAGE:
 (fit output name).(iteration index).nfgfit
 - The output files are regular output files and are named
 (output name).(iteration index).nfgout
-- In the input file, set the fit file to "USENFG"									*/
+- In the input file, set the fit file to "USENFG"						
+- The total output file is a file with all the fit values listed in columns left for data
+  analysis. */
 
 /* This is the Box Muller Method for generating random numbers following a normal distribution
 where the two arguments are the mean or expectation, and the standard deviation */
-double rand_normal(double mean, double stddev) //Box muller method
+double rand_normal(double mean, double stddev)
 {
 	static double n2 = 0.0;
 	static int n2_cached = 0;
@@ -61,48 +63,48 @@ double rand_normal(double mean, double stddev) //Box muller method
 /* This function calls SOCJT2. Note that Terrance doesn't leave the input and output file
 names as command line inputs, so I had to modify the SOCJT2 source code to do so. Therefore,
 the typical "SOCJT_2.exe" will not work. I renamed my modification "NFGSOCJT2.exe" so make
-sure to have this modified SOCJT executable when running NFG */
-void RunSOCJT(string inName, string outName, string Iteration)
+sure to have this modified SOCJT executable when running NFG. This function executes SOCJT2
+with input and output names. */
+void RunSOCJT(string inName, string outName)
 {
-	string NFGName = outName + "." + Iteration + ".nfgout";
-	// system(("./NFGSOCJT2 " + inName + " " + NFGName).c_str()); // For bash
-	system(("NFGSOCJT2.exe " + inName + " " + NFGName).c_str()); // For CMD
+	// system(("./NFGSOCJT2 " + inName + " " + outName).c_str()); // For bash
+	system(("NFGSOCJT2.exe " + inName + " " + outName).c_str()); // For CMD
 }
 
 /* This generates an input file using the new fit file. Note that the input file is saved and accessed
-from the hard drive so don't run two instances of NFG in the same folder. */
+from the hard drive so don't run two instances of NFG in the same folder without different output names. */
 void GenerateInput(string inName, string tmpinName, string IterationFitFile)
 {
-	ifstream InputFile(inName.c_str());
-	ofstream NewInputFile(tmpinName.c_str());
-	string FitFileLine = "FITFILE = " + IterationFitFile;
+	ifstream InputFile(inName.c_str()); // Reads the base input file.
+	ofstream NewInputFile(tmpinName.c_str()); // Generates the temporary input file.
+	string FitFileLine = "FITFILE = " + IterationFitFile; // String which has the iteration's fit file to fit.
 
-	string SetFitFile = "FITFILE = USENFG";
+	string SetFitFile = "FITFILE = USENFG"; // Line to be replaced.
 
 	size_t len = SetFitFile.length();
 	string strTemp;
 
-	bool useNFG = false;
+	bool useNFG = false; // Used to check if flag is off. There is no reason to not use the flag.
 
-	while (getline(InputFile, strTemp))
+	while (getline(InputFile, strTemp)) 
 	{
-		while (true)
+		while (true) // Loops through document to replace FITFILE line.
 		{
 			size_t pos = strTemp.find(SetFitFile);
 			if (pos != string::npos)
 			{
 				strTemp.replace(pos, len, FitFileLine);
-				useNFG = true;
+				useNFG = true; // Turns off error flag.
 			}
 			else
 			{
 				break;
 			}
 		}
-		NewInputFile << strTemp << "\n";
+		NewInputFile << strTemp << "\n"; // Outputs temporary input file line by line.
 	}
 	NewInputFile.close();
-	if (useNFG == false)
+	if (useNFG == false) // Incase you forget to set the switch.
 	{
 		throw 0;
 	}
@@ -112,7 +114,7 @@ int main()
 {
 	srand(time(0));
 
-	string inFit, outFit, Input, Output; // Original fit file, randomized fit file, SOCJT2 input, name for output
+	string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
 	cout << "Name of original fit file?" << endl;
 	getline(cin, inFit);
 	cout << "Name of input file?" << endl;
@@ -121,7 +123,7 @@ int main()
 	getline(cin, Output);
 
 	int N = 0;
-	double StdDev;
+	double StdDev; 
 	cout << "Standard Deviation? (Normal Distribution)" << endl;
 	cin >> StdDev;
 	cout << "How many iterations?" << endl;
@@ -132,49 +134,45 @@ int main()
 		Output = Input + ".out";
 	}
 
-	outFit = inFit + "_" + Output;
+	outFit = inFit + "_" + Output; // The base name for the fit files generated.
 
 	string tmpInput = "tmpInput_" + Output + ".tmp";
-	std::ifstream infile(inFit.c_str());
 
+	std::ifstream infile(inFit.c_str());
 	if (!infile)
 	{
 		cout << endl << "Failed to open fit file: " << inFit;
 		return 0;
 	}
 
-	//	clock_t start;
-	//	double duration;
+	clock_t start;
+	double duration;
 
-	//	start = clock();
+	start = clock();
 
-	std::vector<double> ExactLevels;
+	std::vector<double> ExactLevels; // Stores the original fit file.
 	double val;
 	while (infile >> val)
 	{
 		ExactLevels.push_back(val);
 	}
 
-	for (int j = 0; j < N; j++)
+	ofstream TotalOutput(Output + ".total.nfgout"); // This is the output file with each fit value running down a column.
+	string Marker = "NFG_OUTPUT"; // The program searches for the line with this string, which is the line I've made to have all the values of interest.
+
+	for (int j = 0; j < N; j++) // Begin iterations.
 	{
+		/* This converges the index to a string for naming purposes*/
 		ostringstream jToString;
 		jToString << j;
-		string IterationFitFile = outFit;
-		IterationFitFile.append(".");
-		IterationFitFile.append(jToString.str());
-		IterationFitFile.append(".nfgfit");
-
-		//  string IterationDifference = output;
-		//  IterationDifference.append(".dif.");
-		//  IterationDifference.append(jToString.str());
-		//  IterationDifference.append(".dif");
-
 		string strItIndex = jToString.str();
 
-		std::ofstream FitFile(IterationFitFile.c_str());
-		//  std::ofstream DifFile(IterationDifference.c_str());
+		string IterationFitFile = outFit + "." + strItIndex + ".nfgfit"; // These are the names of the generated fit files for each iteration
+		string IterationOutFile = Output + "." + strItIndex + ".nfgout"; // These are the names of the SOCJT2 outputs for each iteration.
 
-		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution.
+		std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
+
+		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
 		for (int i = 1; i < ExactLevels.size(); i += 4)
 		{
 			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n";
@@ -183,7 +181,7 @@ int main()
 
 		try
 		{
-			GenerateInput(Input, tmpInput, IterationFitFile);
+			GenerateInput(Input, tmpInput, IterationFitFile); // Creates an input file with the name in tmpInput which is the same as the input file but with the fit file modified.
 		}
 		catch (int k)
 		{
@@ -194,12 +192,26 @@ int main()
 			}
 		}
 
-		RunSOCJT(tmpInput, Output, strItIndex);
+		RunSOCJT(tmpInput, IterationOutFile); // Runs SOCJT2 with the temporary input file and outputs the iteration output file.
+
+		string strTemp;
+		ifstream OutputToRead(IterationOutFile); // Reads the output of the current iteration.
+		/* This loop checks each line until Marker is found and puts that line into the total output file */
+		while (getline(OutputToRead, strTemp))
+		{
+			size_t pos = strTemp.find(Marker);
+			if (pos != string::npos)
+			{
+				TotalOutput << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
+				break;
+			}
+		}
 	} // End Iterations Loop
-	remove(tmpInput.c_str());
+	remove(tmpInput.c_str()); // Deletes the temporary input file.
 
-	// duration = (clock() - start) / (double)CLOCKS_PER_SEC;
+	duration = (clock() - start) / (double)CLOCKS_PER_SEC; // Calculates the time of the process.
+	TotalOutput << "\n" << "NFG took " << duration << " seconds.";
+	TotalOutput.close();
 
-	//	cout << "This took " << duration << " seconds."
 	return 0;
 }
