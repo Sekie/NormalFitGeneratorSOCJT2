@@ -24,12 +24,14 @@ USAGE:
 (fit output name).(iteration index).nfgfit
 - The output files are regular output files and are named
 (output name).(iteration index).nfgout
-- In the input file, set the fit file to "USENFG"						
+- In the input file, set the fit file to "USENFG"
 - The total output file is a file with all the fit values listed in columns left for data
   analysis. */
 
 /* This is the Box Muller Method for generating random numbers following a normal distribution
-where the two arguments are the mean or expectation, and the standard deviation */
+where the two arguments are the mean or expectation, and the standard deviation 
+In particular, this is the POLAR FORM of the Box Muller transformation which is computationally
+more efficient (not that it really matters...) and a bit safer when x and y are closer to 0. */
 double rand_normal(double mean, double stddev)
 {
 	static double n2 = 0.0;
@@ -64,11 +66,12 @@ double rand_normal(double mean, double stddev)
 names as command line inputs, so I had to modify the SOCJT2 source code to do so. Therefore,
 the typical "SOCJT_2.exe" will not work. I renamed my modification "NFGSOCJT2.exe" so make
 sure to have this modified SOCJT executable when running NFG. This function executes SOCJT2
-with input and output names. */
+with input and output names. SOCJT also needs to be modified to display all the fit parameters
+in one line after the Marker string. */
 void RunSOCJT(string inName, string outName)
 {
 	// system(("./NFGSOCJT2 " + inName + " " + outName).c_str()); // For bash
-	system(("NFGSOCJT2.exe " + inName + " " + outName).c_str()); // For CMD
+	system(("\"SOCJT 2\".exe " + inName + " " + outName).c_str()); // For CMD // I wish I could figure out a way to avoid system and to make this compatible for both Windows and Linux.
 }
 
 /* This generates an input file using the new fit file. Note that the input file is saved and accessed
@@ -77,7 +80,7 @@ void GenerateInput(string inName, string tmpinName, string IterationFitFile)
 {
 	ifstream InputFile(inName.c_str()); // Reads the base input file.
 	ofstream NewInputFile(tmpinName.c_str()); // Generates the temporary input file.
-	string FitFileLine = "FITFILE = " + IterationFitFile; // String which has the iteration's fit file to fit.
+	string FitFileLine = "FITFILE = " + IterationFitFile + "\n" + "NFG = True"; // String which has the iteration's fit file to fit, then sets NFG flag in SOCJT to true.
 
 	string SetFitFile = "FITFILE = USENFG"; // Line to be replaced.
 
@@ -86,7 +89,7 @@ void GenerateInput(string inName, string tmpinName, string IterationFitFile)
 
 	bool useNFG = false; // Used to check if flag is off. There is no reason to not use the flag.
 
-	while (getline(InputFile, strTemp)) 
+	while (getline(InputFile, strTemp))
 	{
 		while (true) // Loops through document to replace FITFILE line.
 		{
@@ -115,18 +118,18 @@ int main()
 	srand(time(0));
 
 	string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
-	cout << "Name of original fit file?" << endl;
+	cout << "Enter fit file name:" << endl;
 	getline(cin, inFit);
-	cout << "Name of input file?" << endl;
+	cout << "Enter input file name:" << endl;
 	getline(cin, Input);
-	cout << "Name of output file?" << endl;
+	cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
 	getline(cin, Output);
 
 	int N = 0;
-	double StdDev; 
-	cout << "Standard Deviation? (Normal Distribution)" << endl;
+	double StdDev;
+	cout << "Enter Standard Deviation (Normal Distribution):" << endl;
 	cin >> StdDev;
-	cout << "How many iterations?" << endl;
+	cout << "Enter number of iterations:" << endl;
 	cin >> N;
 
 	if (Output.empty() == 1) // If nothing is entered, use Input.out name.
@@ -136,20 +139,21 @@ int main()
 
 	outFit = inFit + "_" + Output; // The base name for the fit files generated.
 
-	string tmpInput = "tmpInput_" + Output + ".tmp";
+	string tmpInput = "tmpInput_" + Output + ".tmp"; // Name for the temporary input which SOCJT uses to fit.
 
-	std::ifstream infile(inFit.c_str());
+	std::ifstream infile(inFit.c_str()); // Checks for fit file.
 	if (!infile)
 	{
 		cout << endl << "Failed to open fit file: " << inFit;
 		return 0;
 	}
 
+	/* Definitions to keep track of the speed */
 	clock_t start;
 	double duration;
-
 	start = clock();
 
+	/* The following stores all numbers in the fit file into ExactLevels */
 	std::vector<double> ExactLevels; // Stores the original fit file.
 	double val;
 	while (infile >> val)
@@ -162,20 +166,19 @@ int main()
 
 	for (int j = 0; j < N; j++) // Begin iterations.
 	{
-		/* This converges the index to a string for naming purposes*/
+		/* This converts the index (iteration) to a string for naming purposes*/
 		ostringstream jToString;
-		jToString << j;
-		string strItIndex = jToString.str();
+		jToString << j + 1;
 
-		string IterationFitFile = outFit + "." + strItIndex + ".nfgfit"; // These are the names of the generated fit files for each iteration
-		string IterationOutFile = Output + "." + strItIndex + ".nfgout"; // These are the names of the SOCJT2 outputs for each iteration.
+		string IterationFitFile = outFit + "." + jToString.str() + ".nfgfit"; // These are the names of the generated fit files for each iteration
+		string IterationOutFile = Output + "." + jToString.str() + ".nfgout"; // These are the names of the SOCJT2 outputs for each iteration.
 
 		std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
 
 		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
 		for (int i = 1; i < ExactLevels.size(); i += 4)
 		{
-			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n";
+			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n"; // Level, j, nj, Sigma
 		}
 		FitFile.close();
 
@@ -185,16 +188,16 @@ int main()
 		}
 		catch (int k)
 		{
-			if (k == 0)
+			if (k == 0) // Means NFG switch is off. There is no reason for this to be off.
 			{
-				cerr << "No switch (USENFG) detected in input file." << endl;
+				TotalOutput << "\n" << "No switch (USENFG) detected in input file." << endl;
 				return 0;
 			}
 		}
 
 		RunSOCJT(tmpInput, IterationOutFile); // Runs SOCJT2 with the temporary input file and outputs the iteration output file.
 
-		string strTemp;
+		string strTemp; // Temporary string used to read the file.
 		ifstream OutputToRead(IterationOutFile); // Reads the output of the current iteration.
 		/* This loop checks each line until Marker is found and puts that line into the total output file */
 		while (getline(OutputToRead, strTemp))
