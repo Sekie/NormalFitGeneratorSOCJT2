@@ -10,6 +10,8 @@
 #include <sstream>
 #include <ctime>
 #include <locale>
+#include <windows.h>
+#include "omp.h"
 
 using namespace std;
 
@@ -19,7 +21,7 @@ coded below. This was made to be used to create varying "experiment" data sets f
 a pure calculation and run fitting tests against such.
 
 USAGE:
-- Make sure to have the modified SOCJT 2 executable named "NFGSOCJT2.exe" in the same folder
+- Make sure to have SOCJT 2.exe in the same folder.
 - The fit file is formatted exactly as for SOCJT 2, and each iteration is saved as
 (fit output name).(iteration index).nfgfit
 - The output files are regular output files and are named
@@ -62,17 +64,69 @@ double rand_normal(double mean, double stddev)
 	}
 }
 
-/* This function calls SOCJT2. Note that Terrance doesn't leave the input and output file
-names as command line inputs, so I had to modify the SOCJT2 source code to do so. Therefore,
-the typical "SOCJT_2.exe" will not work. I renamed my modification "NFGSOCJT2.exe" so make
-sure to have this modified SOCJT executable when running NFG. This function executes SOCJT2
-with input and output names. SOCJT also needs to be modified to display all the fit parameters
-in one line after the Marker string. */
+/* Gets the CWD */
+string GetCWD()
+{
+	char buffer[MAX_PATH];
+	GetModuleFileName(NULL, buffer, MAX_PATH);
+	string::size_type pos = string(buffer).find_last_of("\\/");
+	return string(buffer).substr(0, pos);
+}
+
+/* This function executes SOCJT2 with input and output names. */
 void RunSOCJT(string inName, string outName)
 {
-	// system(("./NFGSOCJT2 " + inName + " " + outName).c_str()); // For bash
-	system(("\"SOCJT 2\".exe " + inName + " " + outName).c_str()); // For CMD // I wish I could figure out a way to avoid system and to make this compatible for both Windows and Linux.
+	string CWD = GetCWD();
+	string Path = CWD + "\\SOCJT 2.exe"; // Full path to SOCJT2, assuming SOCJT2 is in the same folder.
+	//ShellExecute(NULL, "open", ("\"" + Path + "\"").c_str(), (inName + " " + outName).c_str(), NULL, SW_SHOWDEFAULT);
+	system(("\"" + Path + "\" " + inName + " " + outName).c_str());
 }
+//{ // No idea why any of the below didn't work
+//	string CWD = GetCWD();
+//	string Path = "\\SOCJT 2.exe"; // Full path to SOCJT2, assuming SOCJT2 is in the same folder.
+//	STARTUPINFO si;
+//	PROCESS_INFORMATION pi;
+//
+//	string PathWithArguments = "\"\"" + Path = "\" " + inName + " " + outName + "\"";
+//	size_t LengthPWA = PathWithArguments.length();
+//	LPSTR CPPathWithArguments = new char[LengthPWA + 1];
+//	PathWithArguments._Copy_s(CPPathWithArguments, LengthPWA, LengthPWA);
+//	CPPathWithArguments[LengthPWA] = '\0';
+//
+//	ZeroMemory(&si, sizeof(si));
+//	si.cb = sizeof(si);
+//	ZeroMemory(&pi, sizeof(pi));
+//
+//	CreateProcess(Path.c_str(), CPPathWithArguments, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+//
+//	CloseHandle(pi.hProcess);
+//	CloseHandle(pi.hThread);
+//}
+//{
+//	string CWD = GetCWD();
+//	string Path = CWD + "\\SOCJT 2.exe"; // Full path to SOCJT2, assuming SOCJT2 is in the same folder.
+//	LPCSTR Parameters = (inName + " " + outName).c_str();
+//
+//	string PathWithArguments = "\"\"" + Path = "\" " + inName + " " + outName + "\"";
+//	size_t LengthPWA = PathWithArguments.length();
+//	LPSTR CPPathWithArguments = new char[LengthPWA + 1];
+//	PathWithArguments._Copy_s(CPPathWithArguments, LengthPWA, LengthPWA);
+//	CPPathWithArguments[LengthPWA] = '\0';
+//
+//	SHELLEXECUTEINFO ShExecInfo = { 0 };
+//	ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+//	ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+//	ShExecInfo.hwnd = NULL;
+//	ShExecInfo.lpVerb = "open";
+//	ShExecInfo.lpFile = ("\"" + Path + "\"").c_str(); // "\"SOCJT 2.exe\"";
+//	ShExecInfo.lpParameters = NULL;
+//	ShExecInfo.lpDirectory = NULL;
+//	ShExecInfo.nShow = SW_SHOW;
+//	ShExecInfo.hInstApp = NULL;
+//	ShellExecuteEx(&ShExecInfo);
+//	WaitForSingleObject(ShExecInfo.hProcess, INFINITE);
+//	CloseHandle(ShExecInfo.hProcess);
+//}
 
 /* This generates an input file using the new fit file. Note that the input file is saved and accessed
 from the hard drive so don't run two instances of NFG in the same folder without different output names. */
@@ -139,7 +193,7 @@ int main()
 
 	outFit = inFit + "_" + Output; // The base name for the fit files generated.
 
-	string tmpInput = "tmpInput_" + Output + ".tmp"; // Name for the temporary input which SOCJT uses to fit.
+	//string tmpInput = "tmpInput_" + Output + ".tmp"; // Name for the temporary input which SOCJT uses to fit.
 
 	std::ifstream infile(inFit.c_str()); // Checks for fit file.
 	if (!infile)
@@ -164,7 +218,47 @@ int main()
 	ofstream TotalOutput(Output + ".total.nfgout"); // This is the output file with each fit value running down a column.
 	string Marker = "NFG_OUTPUT"; // The program searches for the line with this string, which is the line I've made to have all the values of interest.
 
-	for (int j = 0; j < N; j++) // Begin iterations.
+	/* Now we check that the USENFG switch is present */
+	string tmp1, tmp2;
+	try
+	{
+		GenerateInput(Input, tmp1, tmp2); // Check to see if "USENFG" switch is present. Only the first string matters.
+	}
+	catch (int k)
+	{
+		if (k == 0) // Means NFG switch is off. There is no reason for this to be off.
+		{
+			TotalOutput << "\n" << "No switch (USENFG) detected in input file." << endl;
+			return 0;
+		}
+	}
+	remove(tmp1.c_str());
+
+	int j; // Iteration index.
+	int i; // For fit file generation
+
+	/* First we generate all the fit files outside of the parallel loop */
+	for (j = 0; j < N; j++)
+	{
+		/* This converts the index (iteration) to a string for naming purposes*/
+		ostringstream jToString;
+		jToString << j + 1;
+
+		string IterationFitFile = outFit + "." + jToString.str() + ".nfgfit"; // These are the names of the generated fit files for each iteration
+
+		std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
+
+		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
+		for (i = 1; i < ExactLevels.size(); i += 4)
+		{
+			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n"; // Level, j, nj, Sigma
+		}
+		FitFile.close();
+
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < N; j++) // Begin iterations.
 	{
 		/* This converts the index (iteration) to a string for naming purposes*/
 		ostringstream jToString;
@@ -172,30 +266,21 @@ int main()
 
 		string IterationFitFile = outFit + "." + jToString.str() + ".nfgfit"; // These are the names of the generated fit files for each iteration
 		string IterationOutFile = Output + "." + jToString.str() + ".nfgout"; // These are the names of the SOCJT2 outputs for each iteration.
+		string tmpInput = "tmpInput_" + Output + "." + jToString.str() + ".tmpinput"; // Temporary input file which is read by SOCJT2.
 
-		std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
+		//std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
 
-		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
-		for (int i = 1; i < ExactLevels.size(); i += 4)
-		{
-			FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n"; // Level, j, nj, Sigma
-		}
-		FitFile.close();
+		//FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
+		//for (i = 1; i < ExactLevels.size(); i += 4)
+		//{
+		//	FitFile << setprecision(10) << rand_normal(ExactLevels[i], StdDev) << "\t" << ExactLevels[i + 1] << "\t" << ExactLevels[i + 2] << "\t" << ExactLevels[i + 3] << "\n"; // Level, j, nj, Sigma
+		//}
+		//FitFile.close();
 
-		try
-		{
-			GenerateInput(Input, tmpInput, IterationFitFile); // Creates an input file with the name in tmpInput which is the same as the input file but with the fit file modified.
-		}
-		catch (int k)
-		{
-			if (k == 0) // Means NFG switch is off. There is no reason for this to be off.
-			{
-				TotalOutput << "\n" << "No switch (USENFG) detected in input file." << endl;
-				return 0;
-			}
-		}
+		GenerateInput(Input, tmpInput, IterationFitFile); // Creates an input file with the name in tmpInput which is the same as the input file but with the fit file modified.
 
 		RunSOCJT(tmpInput, IterationOutFile); // Runs SOCJT2 with the temporary input file and outputs the iteration output file.
+		remove(tmpInput.c_str()); // Removes temporary input file after SOCJT2 finishes.
 
 		string strTemp; // Temporary string used to read the file.
 		ifstream OutputToRead(IterationOutFile); // Reads the output of the current iteration.
@@ -210,7 +295,7 @@ int main()
 			}
 		}
 	} // End Iterations Loop
-	remove(tmpInput.c_str()); // Deletes the temporary input file.
+	//remove(tmpInput.c_str()); // Deletes the temporary input file.
 
 	duration = (clock() - start) / (double)CLOCKS_PER_SEC; // Calculates the time of the process.
 	TotalOutput << "\n" << "NFG took " << duration << " seconds.";
