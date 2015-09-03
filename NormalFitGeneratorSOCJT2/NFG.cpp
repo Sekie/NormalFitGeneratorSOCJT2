@@ -179,16 +179,27 @@ int main()
 	cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
 	getline(cin, Output);
 
-	int N = 0;
-	double StdDev;
+	int N = 0; // Number of iterations.
+	string strThread; // Number of parallel threads to run.
+	double StdDev; // Standard Deviation of fit levels.
 	cout << "Enter Standard Deviation (Normal Distribution):" << endl;
 	cin >> StdDev;
 	cout << "Enter number of iterations:" << endl;
 	cin >> N;
+	cin.ignore();
+	cout << "Enter degree of parallelization or press enter to use default:" << endl;
+	getline(cin, strThread);
 
-	if (Output.empty() == 1) // If nothing is entered, use Input.out name.
+	if (Output.empty()) // If nothing is entered, use Input.out name.
 	{
 		Output = Input + ".out";
+	}
+
+	if (!strThread.empty()) // If something was entered, then set that as the number of threads.
+	{
+		int intThread = atoi(strThread.c_str());
+		omp_set_dynamic(0);
+		omp_set_num_threads(intThread);
 	}
 
 	outFit = inFit + "_" + Output; // The base name for the fit files generated.
@@ -290,7 +301,7 @@ int main()
 			size_t pos = strTemp.find(Marker);
 			if (pos != string::npos)
 			{
-				TotalOutput << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
+				TotalOutput << jToString.str() << "\t" << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
 				break;
 			}
 		}
