@@ -176,28 +176,59 @@ void GenerateInput(string inName, string tmpinName, string IterationFitFile)
 	}
 }
 
-int main()
+void GenerateInputPlus(string inName, string tmpinName, vector<string> OldLine, vector<string> NewLine) // Used for scan input files.
+{
+	ifstream InputFile(inName.c_str()); // Reads the base input file.
+	ofstream NewInputFile(tmpinName.c_str()); // Generates the temporary input file.
+
+	vector<size_t> len; // Length of each string to be searched for.
+	for (int i = 0; i < OldLine.size(); i++)
+	{
+		len.push_back(OldLine[i].length());
+	}
+	string strTemp;
+
+	while (getline(InputFile, strTemp)) // Reads each line of input file.
+	{
+		while (true) 
+		{
+			for (int i = 0; i < OldLine.size(); i++) // Loop over all lines to be replaced
+			{
+				size_t pos = strTemp.find(OldLine[i]);
+				if (pos != string::npos) // If a line to be replaced is found, replace it.
+				{
+					strTemp.replace(pos, len[i], NewLine[i]); // Replace with new line.
+				}
+			}
+			break;
+		}
+		NewInputFile << strTemp << "\n"; // Outputs temporary input file line by line.
+	}
+	NewInputFile.close();
+}
+
+int NormalFitGenerator(string inFit, string Input, string Output, double StdDev, int N, string strThread)
 {
 	srand(time(0));
 
-	string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
-	cout << "Enter fit file name:" << endl;
-	getline(cin, inFit);
-	cout << "Enter input file name:" << endl;
-	getline(cin, Input);
-	cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
-	getline(cin, Output);
+	//string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
+	//cout << "Enter fit file name:" << endl;
+	//getline(cin, inFit);
+	//cout << "Enter input file name:" << endl;
+	//getline(cin, Input);
+	//cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
+	//getline(cin, Output);
 
-	int N = 0; // Number of iterations.
-	string strThread; // Number of parallel threads to run.
-	double StdDev; // Standard Deviation of fit levels.
-	cout << "Enter Standard Deviation (Normal Distribution):" << endl;
-	cin >> StdDev;
-	cout << "Enter number of iterations:" << endl;
-	cin >> N;
-	cin.ignore();
-	cout << "Enter degree of parallelization or press enter to use default:" << endl;
-	getline(cin, strThread);
+	//int N = 0; // Number of iterations.
+	//string strThread; // Number of parallel threads to run.
+	//double StdDev; // Standard Deviation of fit levels.
+	//cout << "Enter Standard Deviation (Normal Distribution):" << endl;
+	//cin >> StdDev;
+	//cout << "Enter number of iterations:" << endl;
+	//cin >> N;
+	//cin.ignore();
+	//cout << "Enter degree of parallelization or press enter to use default:" << endl;
+	//getline(cin, strThread);
 
 	if (Output.empty()) // If nothing is entered, use Input.out name.
 	{
@@ -211,7 +242,7 @@ int main()
 		omp_set_num_threads(intThread);
 	}
 
-	outFit = inFit + "_" + Output; // The base name for the fit files generated.
+	string outFit = inFit + "_" + Output; // The base name for the fit files generated.
 
 	//string tmpInput = "tmpInput_" + Output + ".tmp"; // Name for the temporary input which SOCJT uses to fit.
 
@@ -320,6 +351,205 @@ int main()
 	duration = (clock() - start) / (double)CLOCKS_PER_SEC; // Calculates the time of the process.
 	TotalOutput << "\n" << "NFG took " << duration << " seconds.";
 	TotalOutput.close();
+
+	return 0;
+}
+void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, vector<double> ParameterStep, vector<int> ParameterStepNum, string InputName, string OutputName)
+{
+	int TotalSteps = 1;
+	for (int i = 0; i < ParameterStepNum.size(); i++)
+	{
+		TotalSteps *= ParameterStepNum[i]; // Product of all numbers of steps gives us total number of steps to be taken.
+	}
+
+	string* RMSArray = new string[TotalSteps]; // Holds each RMS. I use this to keep values in order.
+
+	vector<string> Replace; // String to replace in the input file
+	
+	for (int i = 0; i < ParameterName.size(); i++)
+	{
+		ostringstream iToString;
+		iToString << i + 1;
+		Replace.push_back(ParameterName[i] + " = SCANP" + iToString.str()); // i.e "MODED = SCANP2" will be replaced. No check is done on fit boolean.
+	}
+
+	std::ofstream tmpTotal((OutputName + "_tmp.total.scan").c_str()); // Stores iterations as the process moves, incase of unexpected interuptions.
+
+#pragma omp parallel for
+	for (int i = 0; i < TotalSteps; i++) // Loop through all grid coordinates.
+	{	
+		int* GridIndex = new int[ParameterName.size()]; // This tells us what step we are on for each parameter. An "abacus" if you will.
+
+		/* This generates what each grid index should be based on total index */
+		int tmpIndex = i;
+		for (int k = ParameterStep.size() - 1; k >= 0; k--)
+		{
+			int mod = 1;
+			for (int kk = 0; kk < k; kk++)
+			{
+				mod *= ParameterStepNum[kk]; // Size of grid before the k'th parameter, i.e how many steps we have to take to add one more to the k'th index.
+			}
+
+			GridIndex[k] = tmpIndex / mod; // Floor division tells us how many times we've passed the k'th dimension, and thus how much we've ++'d.
+			tmpIndex = tmpIndex - GridIndex[k] * mod; // Lowers dimension of index so that we can do the same for k-1'th dimension. Essential takes remainder.
+		}
+
+		vector<string> NewLine; // Line with new parameter value.
+		ostringstream itIndex;
+		itIndex << i + 1;
+		RMSArray[i] += itIndex.str() + "\t"; // Puts step index onto each line.
+
+		string tmpScan = "tmpScan_" + OutputName + "." + itIndex.str() + ".in"; // temporary input file name.
+		string IterationOutput = OutputName + "." + itIndex.str() + ".scan"; // Iteration output file name.
+
+		for (int j = 0; j < ParameterName.size(); j++)
+		{
+			ostringstream osst;
+			osst << ParameterStart[j] + ParameterStep[j] * (double)GridIndex[j];
+			NewLine.push_back(ParameterName[j] + " = " + osst.str()); // String that contains the parameter value.
+			RMSArray[i] += osst.str() + "\t"; // Records parameter value into each line.
+		}
+
+		GenerateInputPlus(InputName, tmpScan, Replace, NewLine); // Generates input with all SCANPi replaced with actual values.
+
+		RunSOCJT(tmpScan, IterationOutput); // Runs SOCJT2 with temp input and iteration output name.
+		std::remove(tmpScan.c_str()); // Deletes temp input
+
+		string Marker = "RMS Error ="; // Will search for this string.
+		string tmpString;
+		std::ifstream OutputToRead(IterationOutput.c_str()); // Reads the output of the current iteration.
+		/* This loop checks each line until Marker is found and puts that line into the total output file */
+		while (getline(OutputToRead, tmpString))
+		{
+			size_t pos = tmpString.find(Marker);
+			if (pos != string::npos)
+			{
+				tmpString.erase(0, 11); // Deletes the "RMS Error ="
+				RMSArray[i] += tmpString; // Records exactly the line which contains Marker and ends the search.
+				break;
+			}
+		}
+
+		tmpTotal << RMSArray[i] << endl;
+		delete[] GridIndex;
+	} // End iterations
+
+	string ScanName = OutputName + ".total.scan";
+	std::ofstream ScanTotal(ScanName.c_str());
+
+	ScanTotal << "Step" << "\t";
+	for (int i = 0; i < ParameterName.size(); i++)
+	{
+		ScanTotal << ParameterName[i] << "\t";
+	}
+	ScanTotal << "RMS Error" << endl;
+	for (int i = 0; i < TotalSteps; i++)
+	{
+		ScanTotal << RMSArray[i] << endl;
+	}
+	std::remove((OutputName + "_tmp.total.scan").c_str());
+	delete[] RMSArray;
+}
+
+int main()
+{
+	int Option;
+	cout << "_______________________________________________" << endl;
+	cout << "[                                             ]" << endl;
+	cout << "[           SOCJT_2 Utility Program           ]" << endl;
+	cout << "[                                             ]" << endl;
+	cout << "[                 Henry Tran                  ]" << endl;
+	cout << "[                                             ]" << endl;
+	cout << "[ 1. Normal Fit Generator                     ]" << endl;
+	cout << "[ 2. RMS Grid Scan                            ]" << endl;
+	cout << "[_____________________________________________]" << endl;
+	cin >> Option;
+	cin.ignore();
+
+	if (Option == 1)
+	{
+		string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
+		cout << "Enter fit file name:" << endl;
+		getline(cin, inFit);
+		cout << "Enter input file name:" << endl;
+		getline(cin, Input);
+		cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
+		getline(cin, Output);
+
+		int N = 0; // Number of iterations.
+		string strThread; // Number of parallel threads to run.
+		double StdDev; // Standard Deviation of fit levels.
+		cout << "Enter Standard Deviation (Normal Distribution):" << endl;
+		cin >> StdDev;
+		cout << "Enter number of iterations:" << endl;
+		cin >> N;
+		cin.ignore();
+		cout << "Enter degree of parallelization or press enter to use default:" << endl;
+		getline(cin, strThread);
+
+		NormalFitGenerator(inFit, Input, Output, StdDev, N, strThread);
+	}
+	if (Option == 2)
+	{
+		string InputName, OutputName, strThread;
+		vector<string> ParameterName;
+		vector<double> ParameterStart, ParameterStep;
+		vector<int> ParameterStepNum;
+		
+		cout << "Description: This utility will scan desired parameters and create a grid of RMS fit errors at each parameter step." << "\n" << endl;
+		cout << "Instructions: Before running this program, create an input file where each parameter to be scanned is set equal to the string \"SCANPi\" "
+			<< "where i denotes the order of the parameter to be scanned. Be sure to set the fit boolean to false. When prompted to enter parameter names, enter the string before "
+			<< "the \"=\", i.e. \"MODED\"." << "\n" << endl;
+		cout << "Enter input file name:" << endl;
+		getline(cin, InputName);
+		cout << "Enter output file name or press enter to use " << InputName << ".out" << endl;
+		getline(cin, OutputName);
+		cout << "Enter degree of parallelization or press enter to use default:" << endl;
+		getline(cin, strThread);
+		if (OutputName.empty()) // If nothing is entered, use Input.out name.
+		{
+			OutputName = InputName + ".out";
+		}
+		if (!strThread.empty()) // If something was entered, then set that as the number of threads.
+		{
+			int intThread = atoi(strThread.c_str());
+			omp_set_dynamic(0);
+			omp_set_num_threads(intThread);
+		}
+
+		string tmpString;
+		cout << "Enter the names of the parameters in order. Enter an empty line to finish:" << endl;
+		while (getline(cin, tmpString) && !tmpString.empty())
+		{
+			ParameterName.push_back(tmpString);
+		}
+
+		cout << "Enter the starting values of your parameters in order:" << endl;
+		while (getline(cin, tmpString))
+		{
+			ParameterStart.push_back(atof(tmpString.c_str()));
+			if (ParameterStart.size() == ParameterName.size()) break;
+		}
+
+		cout << "Enter the step size of each parameter in order:" << endl;
+		while (getline(cin, tmpString))
+		{
+			ParameterStep.push_back(atof(tmpString.c_str()));
+			if (ParameterStep.size() == ParameterName.size()) break;
+		}
+		cout << "Enter the number of steps in each parameter in order:" << endl;
+		while (getline(cin, tmpString))
+		{
+			ParameterStepNum.push_back(atoi(tmpString.c_str()));
+			if (ParameterStepNum.size() == ParameterName.size()) break;
+		}
+		
+		RMSGridScan(ParameterName, ParameterStart, ParameterStep, ParameterStepNum, InputName, OutputName);
+	}
+	else
+	{
+		cout << "No option selected: Terminating Program." << endl;
+	}
 
 	return 0;
 }

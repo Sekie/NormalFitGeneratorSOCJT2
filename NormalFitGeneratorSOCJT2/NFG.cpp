@@ -362,6 +362,8 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 		Replace.push_back(ParameterName[i] + " = SCANP" + to_string(i + 1)); // i.e "MODED = SCANP2" will be replaced. No check is done on fit boolean.
 	}
 
+	ofstream tmpTotal(OutputName + "_tmp.total.scan"); // Stores iterations as the process moves, incase of unexpected interuptions.
+
 #pragma omp parallel for
 	for (int i = 0; i < TotalSteps; i++) // Loop through all grid coordinates.
 	{	
@@ -414,6 +416,7 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 			}
 		}
 
+		tmpTotal << RMSArray[i] << endl;
 		delete[] GridIndex;
 	} // End iterations
 
@@ -430,7 +433,7 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 	{
 		ScanTotal << RMSArray[i] << endl;
 	}
-
+	std::remove((OutputName + "_tmp.total.scan").c_str());
 	delete[] RMSArray;
 }
 
