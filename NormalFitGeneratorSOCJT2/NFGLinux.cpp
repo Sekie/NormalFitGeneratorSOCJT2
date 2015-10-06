@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include "omp.h"
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -207,6 +208,11 @@ void GenerateInputPlus(string inName, string tmpinName, vector<string> OldLine, 
 	NewInputFile.close();
 }
 
+inline bool FileExists(const std::string& name) { // Checks if file exists.
+	struct stat buffer;
+	return (stat(name.c_str(), &buffer) == 0);
+}
+
 int NormalFitGenerator(string inFit, string Input, string Output, double StdDev, int N, string strThread)
 {
 	srand(time(0));
@@ -297,6 +303,11 @@ int NormalFitGenerator(string inFit, string Input, string Output, double StdDev,
 
 		string IterationFitFile = outFit + "." + jToString.str() + ".nfgfit"; // These are the names of the generated fit files for each iteration
 
+		if (FileExists(IterationFitFile.c_str())) // If fit file already exists, it means we are resuming and don't need to generate fit files.
+		{
+			break;
+		}
+
 		std::ofstream FitFile(IterationFitFile.c_str()); // This holds the fit file each iteration.
 
 		FitFile << ExactLevels[0] << "\n"; // This generates the fit files. First the number of lines is defined and then the levels are changed by a normal distribution. The format is exactly that of a SOCJT2 fit file.
@@ -318,6 +329,23 @@ int NormalFitGenerator(string inFit, string Input, string Output, double StdDev,
 		string IterationFitFile = outFit + "." + jToString.str() + ".nfgfit"; // These are the names of the generated fit files for each iteration
 		string IterationOutFile = Output + "." + jToString.str() + ".nfgout"; // These are the names of the SOCJT2 outputs for each iteration.
 		string tmpInput = "tmpInput_" + Output + "." + jToString.str() + ".tmpinput"; // Temporary input file which is read by SOCJT2.
+
+		if (FileExists(IterationOutFile.c_str())) // Checks if the file is already made, moves on if so. Made to continue calculations.
+		{
+			string strTemp; // Temporary string used to read the file.
+			std::ifstream OutputToRead(IterationOutFile.c_str()); // Reads the output of the current iteration.
+			/* This loop checks each line until Marker is found and puts that line into the total output file */
+			while (getline(OutputToRead, strTemp))
+			{
+				size_t pos = strTemp.find(Marker);
+				if (pos != string::npos)
+				{
+					TotalOutput << jToString.str() << "\t" << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
+					break;
+				}
+			}
+			continue;
+		}
 
 		//std::ofstream FitFile(IterationFitFile); // This holds the fit file each iteration.
 
@@ -374,6 +402,12 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 	}
 
 	std::ofstream tmpTotal((OutputName + "_tmp.total.scan").c_str()); // Stores iterations as the process moves, incase of unexpected interuptions.
+	tmpTotal << "Input information:" << endl;
+	for (int i = 0; i < ParameterName.size(); i++)
+	{
+		tmpTotal << ParameterName[i] << "\t" << ParameterStart[i] << "\t" << ParameterStep[i] << "\t" << ParameterStepNum[i] << endl;
+	}
+	tmpTotal << "\n\n";
 
 #pragma omp parallel for
 	for (int i = 0; i < TotalSteps; i++) // Loop through all grid coordinates.
@@ -408,6 +442,26 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 			osst << ParameterStart[j] + ParameterStep[j] * (double)GridIndex[j];
 			NewLine.push_back(ParameterName[j] + " = " + osst.str()); // String that contains the parameter value.
 			RMSArray[i] += osst.str() + "\t"; // Records parameter value into each line.
+		}
+
+		if (FileExists(IterationOutput.c_str())) // Checks if the file is already made, moves on if so. Made to continue calculations.
+		{
+			string Marker = "RMS Error ="; // Will search for this string.
+			string tmpString;
+			std::ifstream OutputToRead(IterationOutput.c_str()); // Reads the output of the current iteration.
+			/* This loop checks each line until Marker is found and puts that line into the total output file */
+			while (getline(OutputToRead, tmpString))
+			{
+				size_t pos = tmpString.find(Marker);
+				if (pos != string::npos)
+				{
+					tmpString.erase(0, 11); // Deletes the "RMS Error ="
+					RMSArray[i] += tmpString; // Records exactly the line which contains Marker and ends the search.
+					break;
+				}
+			}
+			tmpTotal << RMSArray[i] << endl;
+			continue;
 		}
 
 		GenerateInputPlus(InputName, tmpScan, Replace, NewLine); // Generates input with all SCANPi replaced with actual values.
@@ -458,7 +512,6 @@ int main()
 	cout << "[                                             ]" << endl;
 	cout << "[           SOCJT_2 Utility Program           ]" << endl;
 	cout << "[                                             ]" << endl;
-	cout << "[                 Henry Tran                  ]" << endl;
 	cout << "[                                             ]" << endl;
 	cout << "[ 1. Normal Fit Generator                     ]" << endl;
 	cout << "[ 2. RMS Grid Scan                            ]" << endl;
