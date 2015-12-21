@@ -1,16 +1,17 @@
-﻿Build started 9/30/2015 6:11:48 PM.
+﻿Build started 12/21/2015 3:15:45 PM.
      1>Project "\\linuxfs\tam_pub\htran\Codes\NormalFitGeneratorSOCJT2\NormalFitGeneratorSOCJT2\NormalFitGeneratorSOCJT2.vcxproj" on node 2 (Build target(s)).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /Zi /nologo /W3 /WX- /sdl /O2 /Oi /Oy- /GL /D _MBCS /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /openmp /Fo"Release\\" /Fd"Release\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt NFG.cpp
          NFG.cpp
      1>NFG.cpp(177): warning C4018: '<' : signed/unsigned mismatch
      1>NFG.cpp(187): warning C4018: '<' : signed/unsigned mismatch
-     1>NFG.cpp(209): warning C4244: 'argument' : conversion from 'time_t' to 'unsigned int', possible loss of data
-     1>NFG.cpp(300): warning C4018: '<' : signed/unsigned mismatch
-     1>NFG.cpp(362): warning C4018: '<' : signed/unsigned mismatch
-     1>NFG.cpp(370): warning C4018: '<' : signed/unsigned mismatch
-     1>NFG.cpp(398): warning C4018: '<' : signed/unsigned mismatch
-     1>NFG.cpp(455): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(251): warning C4244: 'argument' : conversion from 'time_t' to 'unsigned int', possible loss of data
+     1>NFG.cpp(328): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(403): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(411): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(418): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(445): warning C4018: '<' : signed/unsigned mismatch
+     1>NFG.cpp(510): warning C4018: '<' : signed/unsigned mismatch
        Link:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"\\linuxfs\tam_pub\htran\Codes\NormalFitGeneratorSOCJT2\Release\NormalFitGeneratorSOCJT2.exe" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"\\linuxfs\tam_pub\htran\Codes\NormalFitGeneratorSOCJT2\Release\NormalFitGeneratorSOCJT2.pdb" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"\\linuxfs\tam_pub\htran\Codes\NormalFitGeneratorSOCJT2\Release\NormalFitGeneratorSOCJT2.lib" /MACHINE:X86 /SAFESEH Release\NFG.obj
          Generating code
@@ -20,4 +21,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:17.63
+Time Elapsed 00:00:03.63

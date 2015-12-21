@@ -78,7 +78,7 @@ string GetCWD()
 void RunSOCJT(string inName, string outName)
 {
 	string CWD = GetCWD();
-	string Path = CWD + "\\SOCJT 2.exe"; // Full path to SOCJT2, assuming SOCJT2 is in the same folder.
+	string Path = CWD + "\\SOCJT 2.exe"; //"\\\"SOCJT 2.exe\""; // Full path to SOCJT2, assuming SOCJT2 is in the same folder.
 	//ShellExecute(NULL, "open", ("\"" + Path + "\"").c_str(), (inName + " " + outName).c_str(), NULL, SW_SHOWDEFAULT);
 	system(("\"" + Path + "\" " + inName + " " + outName).c_str());
 }
@@ -199,6 +199,48 @@ void GenerateInputPlus(string inName, string tmpinName, vector<string> OldLine, 
 	NewInputFile.close();
 }
 
+void GenerateIteratedInput(string NewInput, string Output, string NewFitFile)
+{
+	ifstream CurrentOutput(Output.c_str());
+	ofstream NextInput(NewInput.c_str());
+	
+	string strTemp;
+	int count = 0;
+
+	while (getline(CurrentOutput, strTemp))
+	{
+		if (strTemp == "&GENERAL") // There are two of these, the input and the output with correct parameters. We want to skip the first one.
+		{
+			count++;
+		}
+		if (count == 2)
+		{
+			if (strTemp.size() > 4)
+			{
+				if (strTemp[0] == 'F' && strTemp[1] == 'I' && strTemp[2] == 'T' && strTemp[3] == 'F') // "FITFILE"
+				{
+					string replace = "FITFILE = " + NewFitFile;
+					NextInput << replace << "\n"; // NFG = True \n";
+					continue;
+				}
+				if (strTemp[0] == 'S' && strTemp[1] == 'O' && strTemp[2] == 'C' && strTemp[3] == 'J') // "SOCJT 2 has completed. Total ...
+				{
+					break;
+				}
+				else
+				{
+					NextInput << strTemp << "\n";
+				}
+			}
+			else
+			{
+				NextInput << strTemp << "\n";
+			}
+		}
+	}
+	NextInput.close();
+}
+
 inline bool FileExists(const std::string& name) { // Checks if file exists.
 	struct stat buffer;
 	return (stat(name.c_str(), &buffer) == 0);
@@ -207,25 +249,6 @@ inline bool FileExists(const std::string& name) { // Checks if file exists.
 void NormalFitGenerator(string inFit, string Input, string Output, double StdDev, int N, string strThread)
 {
 	srand(time(0));
-
-	//string inFit, outFit, Input, Output; // Fit file, Basename for the generated fit files, Input filename, Basename for the generated output files
-	//cout << "Enter fit file name:" << endl;
-	//getline(cin, inFit);
-	//cout << "Enter input file name:" << endl;
-	//getline(cin, Input);
-	//cout << "Enter output file name or press enter to use " << Input << ".out:" << endl;
-	//getline(cin, Output);
-
-	//int N = 0; // Number of iterations.
-	//string strThread; // Number of parallel threads to run.
-	//double StdDev; // Standard Deviation of fit levels.
-	//cout << "Enter Standard Deviation (Normal Distribution):" << endl;
-	//cin >> StdDev;
-	//cout << "Enter number of iterations:" << endl;
-	//cin >> N;
-	//cin.ignore();
-	//cout << "Enter degree of parallelization or press enter to use default:" << endl;
-	//getline(cin, strThread);
 
 	if (Output.empty()) // If nothing is entered, use Input.out name.
 	{
@@ -497,6 +520,48 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 	delete[] RMSArray;
 }
 
+void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
+{
+	string ParameterList = Output + ".total.its";
+	ofstream TotalOutput(ParameterList);
+
+	for (int i = N0; i < N; i++)
+	{
+		string IterationOutput = Output + "." + to_string(i) + ".its";
+		string IterationInput = Input + "." + to_string(i) + ".its";
+		string IterationFitFile = FitFile + "_" + to_string(i);
+		if (i == N0) // For the first iteration, just use input file as is.
+		{
+			RunSOCJT(Input, IterationOutput);
+		}
+		else
+		{
+			RunSOCJT(IterationInput, IterationOutput);
+		}
+		if (i != N - 1) // Generate next input unless we are on the last iteration.
+		{
+			GenerateIteratedInput(Input + "." + to_string(i + 1) + ".its", IterationOutput, FitFile + "_" + to_string(i + 1));
+		}
+		if (i != N0) // Remove input file unless we are on the first iteration.
+		{
+			std::remove(IterationInput.c_str()); // Removes temporary input file after SOCJT2 finishes.
+		}
+		string strTemp; // Temporary string used to read the file.
+		ifstream OutputToRead(IterationOutput); // Reads the output of the current iteration.
+		string Marker = "NFG_OUTPUT";
+		/* This loop checks each line until Marker is found and puts that line into the total output file */
+		while (getline(OutputToRead, strTemp))
+		{
+			size_t pos = strTemp.find(Marker);
+			if (pos != string::npos)
+			{
+				TotalOutput << to_string(i) << "\t" << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
+				break;
+			}
+		}
+	}
+}
+
 int main()
 {
 	int Option;
@@ -507,6 +572,7 @@ int main()
 	cout << "[                                             ]" << endl;
 	cout << "[ 1. Normal Fit Generator                     ]" << endl;
 	cout << "[ 2. RMS Grid Scan                            ]" << endl;
+	cout << "[ 3. Iterated Fits                            ]" << endl;
 	cout << "[_____________________________________________]" << endl;
 	cin >> Option;
 	cin.ignore();
@@ -591,10 +657,37 @@ int main()
 		
 		RMSGridScan(ParameterName, ParameterStart, ParameterStep, ParameterStepNum, InputName, OutputName);
 	}
+	if (Option == 3)
+	{
+		string Input, Output, FitBase;
+		int N, N0;
+
+		cout << "Description: This utility will fit a sequence of fit files by using the results from the previous fit for the next fit." << "\n" << endl;
+		cout << "Instructions: Create a series of fit file with the name FitBase_i where i is an integer from N0 to N where N is your desired final iteration and N0 is the starting integer. " <<
+			"Create an input file set to fit FitBase_0 with NFG = True switch on. Enter the name of FitBase for the fit file name." << endl;
+
+		cout << "Enter input file name:" << endl;
+		cin >> Input;
+
+		cout << "Enter output file name:" << endl;
+		cin >> Output;
+
+		cout << "Enter the base of the fit file name:" << endl;
+		cin >> FitBase;
+
+		cout << "Enter starting integer:" << endl;
+		cin >> N0;
+
+		cout << "Enter final iteration integer:" << endl;
+		cin >> N;
+
+		N++;
+
+		IteratedFits(N0, N, Input, Output, FitBase);
+	}
 	else
 	{
 		cout << "No option selected: Terminating Program." << endl;
 	}
-
 	return 0;
 }
