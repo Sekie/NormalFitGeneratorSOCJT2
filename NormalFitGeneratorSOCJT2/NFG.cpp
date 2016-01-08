@@ -421,6 +421,8 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 	}
 	tmpTotal << "\n\n";
 
+	ofstream ScanParameters(OutputName + ".param.scan");
+
 #pragma omp parallel for
 	for (int i = 0; i < TotalSteps; i++) // Loop through all grid coordinates.
 	{	
@@ -469,6 +471,18 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 				}
 			}
 			tmpTotal << RMSArray[i] << endl;
+
+			Marker = "NFG_OUTPUT";
+			while (getline(OutputToRead, tmpString))
+			{
+				size_t pos = tmpString.find(Marker);
+				if (pos != string::npos)
+				{
+					ScanParameters << tmpString << endl;
+					break;
+				}
+			}
+
 			continue;
 		}
 
@@ -488,6 +502,17 @@ void RMSGridScan(vector<string> ParameterName, vector<double> ParameterStart, ve
 			{
 				tmpString.erase(0, 11); // Deletes the "RMS Error ="
 				RMSArray[i] += tmpString; // Records exactly the line which contains Marker and ends the search.
+				break;
+			}
+		}
+
+		Marker = "NFG_OUTPUT";
+		while (getline(OutputToRead, tmpString))
+		{
+			size_t pos = tmpString.find(Marker);
+			if (pos != string::npos)
+			{
+				ScanParameters << tmpString << endl;
 				break;
 			}
 		}
