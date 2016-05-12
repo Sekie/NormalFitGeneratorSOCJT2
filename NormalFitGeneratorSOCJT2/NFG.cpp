@@ -549,8 +549,24 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 {
 	string ParameterList = Output + ".total.its";
 	ofstream TotalOutput(ParameterList);
+	string SpaghettiE = Output + ".spaghettiE.its";
+	string SpaghettiA = Output + ".spaghettiA.its";
+	ofstream SpagE(SpaghettiE);
+	ofstream SpagA(SpaghettiA);
 
-	for (int i = N0; i < N; i++)
+	int count;
+	if (N0 <= N)
+	{
+		count = 1;
+	}
+	else
+	{
+		count = -1;
+	}
+
+	int NN = N + count;
+
+	for (int i = N0; count * i < count * NN; i = i + count)
 	{
 		string IterationOutput = Output + "." + to_string(i) + ".its";
 		string IterationInput = Input + "." + to_string(i) + ".its";
@@ -563,9 +579,9 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 		{
 			RunSOCJT(IterationInput, IterationOutput);
 		}
-		if (i != N - 1) // Generate next input unless we are on the last iteration.
+		if (i != NN - count) // Generate next input unless we are on the last iteration.
 		{
-			GenerateIteratedInput(Input + "." + to_string(i + 1) + ".its", IterationOutput, FitFile + "_" + to_string(i + 1));
+			GenerateIteratedInput(Input + "." + to_string(i + count) + ".its", IterationOutput, FitFile + "_" + to_string(i + count));
 		}
 		if (i != N0) // Remove input file unless we are on the first iteration.
 		{
@@ -578,11 +594,37 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 		while (getline(OutputToRead, strTemp))
 		{
 			size_t pos = strTemp.find(Marker);
+			size_t Epos = strTemp.find("ELEVEL");
+			size_t Apos = strTemp.find("ALEVEL");
+
 			if (pos != string::npos)
 			{
 				TotalOutput << to_string(i) << "\t" << strTemp << endl; // Records exactly the line which contains Marker and ends the search.
-				break;
+				//break;
 			}
+
+			if (Epos != string::npos)
+			{
+				strTemp.erase(0, 6);
+				SpagE << (float)i / 100 << strTemp << "\n";
+			}
+			if (Apos != string::npos)
+			{
+				strTemp.erase(0, 6);
+				SpagA << (float)i / 100 << strTemp << "\n";
+			}
+
+
+			/*if (strTemp[0] == 'E' && strTemp[1] == 'L' && strTemp[2] == 'E' && strTemp[3] == 'V')
+			{
+				strTemp.erase(0, 6);
+				SpagE << (float)i / 100 << strTemp << "\n";
+			}
+			if (strTemp[0] == 'A' && strTemp[1] == 'L' && strTemp[2] == 'E' && strTemp[3] == 'V')
+			{
+				strTemp.erase(0, 6);
+				SpagA << (float)i / 100 << strTemp << "\n";
+			}*/
 		}
 	}
 }
@@ -706,7 +748,7 @@ int main()
 		cout << "Enter final iteration integer:" << endl;
 		cin >> N;
 
-		N++;
+		//N++;
 
 		IteratedFits(N0, N, Input, Output, FitBase);
 	}
