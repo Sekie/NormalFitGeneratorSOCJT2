@@ -550,9 +550,11 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 	string ParameterList = Output + ".total.its";
 	ofstream TotalOutput(ParameterList);
 	string SpaghettiE = Output + ".spaghettiE.its";
-	string SpaghettiA = Output + ".spaghettiA.its";
+	string SpaghettiA1 = Output + ".spaghettiA1.its";
+	string SpaghettiA2 = Output + ".spaghettiA2.its";
 	ofstream SpagE(SpaghettiE);
-	ofstream SpagA(SpaghettiA);
+	ofstream SpagA1(SpaghettiA1);
+	ofstream SpagA2(SpaghettiA2);
 
 	int count;
 	if (N0 <= N)
@@ -595,7 +597,8 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 		{
 			size_t pos = strTemp.find(Marker);
 			size_t Epos = strTemp.find("ELEVEL");
-			size_t Apos = strTemp.find("ALEVEL");
+			size_t A1pos = strTemp.find("A1LEVEL");
+			size_t A2pos = strTemp.find("A2LEVEL");
 
 			if (pos != string::npos)
 			{
@@ -608,10 +611,15 @@ void IteratedFits(int N0, int N, string Input, string Output, string FitFile)
 				strTemp.erase(0, 6);
 				SpagE << (float)i / 100 << strTemp << "\n";
 			}
-			if (Apos != string::npos)
+			if (A1pos != string::npos)
 			{
 				strTemp.erase(0, 6);
-				SpagA << (float)i / 100 << strTemp << "\n";
+				SpagA1 << (float)i / 100 << strTemp << "\n";
+			}
+			if (A2pos != string::npos)
+			{
+				strTemp.erase(0, 6);
+				SpagA2 << (float)i / 100 << strTemp << "\n";
 			}
 
 
